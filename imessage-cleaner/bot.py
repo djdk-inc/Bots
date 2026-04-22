@@ -10,7 +10,7 @@ from archive import archive_to_notes
 from blocker import block_numbers
 import config
 
-DELETABLE    = [c for c, (_, _, default) in CATEGORIES.items() if default]
+DELETABLE    = [c for c in CATEGORIES if c != "legitimate"]
 BLOCK_ON     = {"phishing", "job_scam", "ad"}
 
 
