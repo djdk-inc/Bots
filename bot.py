@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from imessage_cleaner import fetch_messages, delete_from_db, CATEGORIES, DB_PATH
+from archive import archive_to_notes
 import config
 
 APPLE_EPOCH = 978307200
@@ -89,13 +90,14 @@ def load_state() -> dict | None:
     return json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else None
 
 
-def save_state(rowids: list[int], chat_id: int) -> None:
+def save_state(messages: list[dict], chat_id: int) -> None:
     STATE_DIR.mkdir(exist_ok=True)
     STATE_FILE.write_text(json.dumps({
         "date": date.today().isoformat(),
         "sent_at": datetime.now().timestamp(),
         "chat_id": chat_id,
-        "rowids": rowids,
+        "rowids": [m["rowid"] for m in messages],
+        "messages": messages,
     }))
 
 
@@ -105,8 +107,12 @@ def main() -> None:
     # Step 1: check if yesterday's scan was approved
     if state:
         if check_yes_reply(state["chat_id"], state["sent_at"]):
+            archived = archive_to_notes(state.get("messages", []))
+            if not archived:
+                send_imessage("⚠️ Archive to Notes failed — deletion skipped.")
+                return
             deleted = delete_from_db(state["rowids"])
-            send_imessage(f"✓ Deleted {deleted} messages.")
+            send_imessage(f"✓ Archived + deleted {deleted} messages.")
         STATE_FILE.unlink()
 
     # Step 2: scan today
@@ -128,8 +134,8 @@ def main() -> None:
     if not chat_id:
         return
 
-    rowids = [m["rowid"] for msgs in candidates.values() for m in msgs]
-    save_state(rowids, chat_id)
+    flagged = [m for msgs in candidates.values() for m in msgs]
+    save_state(flagged, chat_id)
 
 
 if __name__ == "__main__":
