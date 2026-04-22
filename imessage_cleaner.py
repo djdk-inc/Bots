@@ -126,9 +126,19 @@ def delete_from_db(rowids: list[int]) -> int:
     print(f"  Backup saved → {backup_path}")
 
     conn = sqlite3.connect(DB_PATH)
+
+    # after_delete_on_message_plugin calls a function that only exists inside
+    # Messages.app. Drop it for the duration of the delete, then recreate.
+    (trigger_sql,) = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'after_delete_on_message_plugin'"
+    ).fetchone()
+    conn.execute("DROP TRIGGER IF EXISTS after_delete_on_message_plugin")
+
     ph = ','.join('?' * len(rowids))
     cur = conn.execute(f"DELETE FROM message WHERE ROWID IN ({ph})", rowids)
     deleted = cur.rowcount
+
+    conn.execute(trigger_sql)
     conn.commit()
     conn.close()
     return deleted
