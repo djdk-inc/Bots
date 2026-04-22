@@ -3,3 +3,4 @@ __pycache__/
 .DS_Store
 backups/
 ~/.imessage_cleaner/
+config.py
