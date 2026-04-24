@@ -17,11 +17,13 @@ BACKUP_DIR = Path.home() / ".imessage_cleaner_backups"
 OTP_PATTERNS = [
     r'(?:your\s+)?(?:code|otp|pin|passcode|one.time\s+password)\s*(?:is\s*:?|:)\s*\d{4,8}',
     r'\d{4,8}\s+is\s+your\s+(?:\w+\s+)?(?:verification|confirmation|login|security|access)\s+code',
-    r'verification\s+code[:\s]+\d{4,8}',
+    r'verification\s+code.{0,50}\d{4,8}',
     r'use\s+\d{4,8}\s+to\s+(?:verify|confirm|login|sign)',
     r'(?:code|otp)\s*[:=]\s*\d{4,8}',
     r'\b\d{6}\b.{0,60}(?:don.t\s+share|never\s+share|do\s+not\s+share)',
     r'your\s+code\s+is\s*:?\s*\d{4,8}',
+    r'\bCode\s+\d{4,8}\b',
+    r'\benter\s+\d{4,8}\b',
 ]
 
 PHISHING_PATTERNS = [
