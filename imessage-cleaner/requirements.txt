@@ -1,1 +1,1 @@
-# no external dependencies — stdlib only
+anthropic>=0.49.0

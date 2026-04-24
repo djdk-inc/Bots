@@ -9,6 +9,29 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+try:
+    import anthropic as _anthropic
+    import os as _os
+    _api_key = _os.environ.get("ANTHROPIC_API_KEY", "")
+    if not _api_key:
+        try:
+            import config as _cfg
+            _api_key = getattr(_cfg, "ANTHROPIC_API_KEY", "")
+        except ImportError:
+            pass
+    _ANTHROPIC_CLIENT = _anthropic.Anthropic(api_key=_api_key) if _api_key else None
+except Exception:
+    _ANTHROPIC_CLIENT = None
+
+_LLM_SYSTEM = (
+    "You are a classifier for SMS/iMessage text messages. "
+    "Your only job is to decide whether a message is an OTP (one-time password / verification code) message. "
+    "OTP messages contain a short numeric code (4–8 digits) sent to authenticate the recipient — "
+    "e.g. login codes, 2FA codes, verification codes, confirmation codes, password-reset codes. "
+    "Reply with EXACTLY one line: a floating-point probability between 0.0 and 1.0. "
+    "No explanation, no other text."
+)
+
 DB_PATH = Path.home() / "Library/Messages/chat.db"
 BACKUP_DIR = Path.home() / ".imessage_cleaner_backups"
 
@@ -72,6 +95,29 @@ CATEGORIES = {
 }
 
 
+_OTP_DIGIT_RE = re.compile(r'\b\d{4,8}\b')
+
+def _llm_is_otp(text: str) -> bool:
+    """Ask Claude Haiku whether this message is an OTP. Returns True if confidence >= 0.85."""
+    if _ANTHROPIC_CLIENT is None:
+        return False
+    try:
+        msg = _ANTHROPIC_CLIENT.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=8,
+            system=[{
+                "type": "text",
+                "text": _LLM_SYSTEM,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": text[:500]}],
+        )
+        raw = msg.content[0].text.strip()
+        return float(raw) >= 0.85
+    except Exception:
+        return False
+
+
 def classify(text: str) -> str:
     t = text.lower()
     for p in OTP_PATTERNS:
@@ -86,6 +132,9 @@ def classify(text: str) -> str:
     for p in AD_PATTERNS:
         if re.search(p, t, re.IGNORECASE):
             return 'ad'
+    # LLM fallback: only for messages that contain a digit sequence (pre-filter)
+    if _OTP_DIGIT_RE.search(text) and _llm_is_otp(text):
+        return 'otp'
     return 'legitimate'
 
 
