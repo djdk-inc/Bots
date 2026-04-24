@@ -56,11 +56,17 @@ _OTP_CODE_RE = re.compile(r'\b\d{4,8}\b')
 
 # Structural fallbacks for messages where vocab doesn't appear but structure is clear
 OTP_PATTERNS = [
-    r'\benter\s+\d{4,8}\b',           # "enter 123456"
-    r'\bCode\s+\d{4,8}\b',            # "Code 891363" (BofA style)
-    r'(?:otp|pin)\s*[:=]\s*\d{4,8}',  # "OTP: 123456", "PIN=7890"
-    r'your\s+code\s+is\s*:?\s*\d{4,8}', # "your code is 123456"
-    r'use\s+\d{4,8}\s+to\s+(?:verify|confirm|login|sign)', # "use 123456 to verify"
+    r'\benter\s+\d{4,8}\b',              # "enter 123456"
+    r'\bCode\s+\d{4,8}\b',               # "Code 891363" (BofA style)
+    r'(?:otp|pin)\s*[:=]\s*\d{4,8}',     # "OTP: 123456", "PIN=7890"
+    r'your\s+code\s+is\s*:?\s*\d{4,8}',  # "your code is 123456"
+    r'use\s+\d{4,8}\s+to\s+(?:verify|confirm|login|sign)',  # "use 123456 to verify"
+    # Link-based verification (no digit code)
+    r'sent\s+a\s+verification\s+link',
+    r'(?:verif|confirm|authenticat).{0,80}(?:tap|click)\s+https?://',
+    r'(?:tap|click)\s+https?://\S+.{0,80}(?:verif|confirm|authenticat)',
+    # "tap [URL]" where the URL path itself implies verification
+    r'(?:tap|click)\s+https?://\S*(?:digital.?id|verif|confirm|authen|secure\.)\S*',
 ]
 
 PHISHING_PATTERNS = [
