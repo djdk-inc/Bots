@@ -37,16 +37,30 @@ BACKUP_DIR = Path.home() / ".imessage_cleaner_backups"
 
 # ── Classification patterns ──────────────────────────────────────────────────
 
+# Vocabulary that strongly signals an OTP message (order-independent).
+# Combined with a 4–8 digit code anywhere in the text this is sufficient.
+_OTP_VOCAB_RE = re.compile(
+    r'\b(?:'
+    r'verif(?:y|ied|ication|ying|ies)|'
+    r'passcode|'
+    r'one.time\s+(?:password|code)|'
+    r'access\s+code|security\s+code|login\s+code|authentication\s+code|'
+    r'authentication|two.factor|2fa|'
+    r'\botp\b|'
+    r'confirmation\s+code|'
+    r"don.t\s+share|never\s+share|do\s+not\s+share"
+    r')\b',
+    re.IGNORECASE,
+)
+_OTP_CODE_RE = re.compile(r'\b\d{4,8}\b')
+
+# Structural fallbacks for messages where vocab doesn't appear but structure is clear
 OTP_PATTERNS = [
-    r'(?:your\s+)?(?:code|otp|pin|passcode|one.time\s+password)\s*(?:is\s*:?|:)\s*\d{4,8}',
-    r'\d{4,8}\s+is\s+your\s+(?:\w+\s+)?(?:verification|confirmation|login|security|access)\s+code',
-    r'verification\s+code.{0,50}\d{4,8}',
-    r'use\s+\d{4,8}\s+to\s+(?:verify|confirm|login|sign)',
-    r'(?:code|otp)\s*[:=]\s*\d{4,8}',
-    r'\b\d{6}\b.{0,60}(?:don.t\s+share|never\s+share|do\s+not\s+share)',
-    r'your\s+code\s+is\s*:?\s*\d{4,8}',
-    r'\bCode\s+\d{4,8}\b',
-    r'\benter\s+\d{4,8}\b',
+    r'\benter\s+\d{4,8}\b',           # "enter 123456"
+    r'\bCode\s+\d{4,8}\b',            # "Code 891363" (BofA style)
+    r'(?:otp|pin)\s*[:=]\s*\d{4,8}',  # "OTP: 123456", "PIN=7890"
+    r'your\s+code\s+is\s*:?\s*\d{4,8}', # "your code is 123456"
+    r'use\s+\d{4,8}\s+to\s+(?:verify|confirm|login|sign)', # "use 123456 to verify"
 ]
 
 PHISHING_PATTERNS = [
@@ -95,8 +109,6 @@ CATEGORIES = {
 }
 
 
-_OTP_DIGIT_RE = re.compile(r'\b\d{4,8}\b')
-
 def _llm_is_otp(text: str) -> bool:
     """Ask Claude Haiku whether this message is an OTP. Returns True if confidence >= 0.85."""
     if _ANTHROPIC_CLIENT is None:
@@ -119,21 +131,24 @@ def _llm_is_otp(text: str) -> bool:
 
 
 def classify(text: str) -> str:
-    t = text.lower()
+    # OTP: any 4-8 digit code + OTP vocabulary anywhere in the message (order-independent)
+    if _OTP_CODE_RE.search(text) and _OTP_VOCAB_RE.search(text):
+        return 'otp'
+    # Structural fallbacks for common OTP formats without explicit vocabulary
     for p in OTP_PATTERNS:
-        if re.search(p, t, re.IGNORECASE):
+        if re.search(p, text, re.IGNORECASE):
             return 'otp'
     for p in JOB_SCAM_PATTERNS:
-        if re.search(p, t, re.IGNORECASE):
+        if re.search(p, text, re.IGNORECASE):
             return 'job_scam'
     for p in PHISHING_PATTERNS:
-        if re.search(p, t, re.IGNORECASE):
+        if re.search(p, text, re.IGNORECASE):
             return 'phishing'
     for p in AD_PATTERNS:
-        if re.search(p, t, re.IGNORECASE):
+        if re.search(p, text, re.IGNORECASE):
             return 'ad'
-    # LLM fallback: only for messages that contain a digit sequence (pre-filter)
-    if _OTP_DIGIT_RE.search(text) and _llm_is_otp(text):
+    # LLM fallback: only for messages with a digit sequence (pre-filter)
+    if _OTP_CODE_RE.search(text) and _llm_is_otp(text):
         return 'otp'
     return 'legitimate'
 
